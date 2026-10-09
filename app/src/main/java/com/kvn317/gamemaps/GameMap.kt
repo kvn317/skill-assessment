@@ -128,7 +128,7 @@ class GameMap(ctx: Context) : FrameLayout(ctx) {
         val l = Gps.last
         s.getSourceAs<GeoJsonSource>("me")?.let { src ->
             if (l == null) src.setGeoJson(FeatureCollection.fromFeatures(emptyList<Feature>()))
-            else src.setGeoJson(Feature.fromGeometry(Point.fromLngLat(l.longitude, l.latitude)).apply { addNumberProperty("bearing", l.bearing) })
+            else src.setGeoJson(Feature.fromGeometry(Point.fromLngLat(l.longitude, l.latitude)).apply { addNumberProperty("bearing", blipBearing(l)) })
         }
         val d = Nav.dest
         s.getSourceAs<GeoJsonSource>("dest")?.let { src ->
@@ -144,6 +144,10 @@ class GameMap(ctx: Context) : FrameLayout(ctx) {
             }
         }
     }
+
+    /** Driving: GPS direction of travel. Standing or walking slowly: where the phone points, if it has a compass. */
+    private fun blipBearing(l: android.location.Location): Float =
+        if (l.hasBearing() && l.speed > 1.5f) l.bearing else Compass.azimuth ?: l.bearing
 
     private fun applyTheme() {
         hud.invalidate()

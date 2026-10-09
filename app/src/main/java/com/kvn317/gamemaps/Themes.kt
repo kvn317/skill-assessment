@@ -14,7 +14,10 @@ class MapTheme(
     val casing: String,
     val label: String,
     val halo: String,
-    val font: String,
+    /** Bundled glyph fonts (assets/fonts, built by tools/make_glyphs.py): towns and districts, then street names. */
+    val placeFont: String,
+    val roadFont: String = placeFont,
+    val roadCaps: Boolean = true,
     val route: String,
     val blip: Int,
     /** HUD grid line color drawn over the map; 0 = none. */
@@ -31,7 +34,9 @@ object Themes {
             "RDR2",
             land = "#dcc3a1", water = "#a8a28f", shore = "#7d7868", green = "#d6bd9a", building = "#dcc3a1",
             minor = "#3e3530", major = "#3e3530", motorway = "#3e3530", casing = "#dcc3a1",
-            label = "#3e3530", halo = "#dcc3a1", font = "Noto Sans Bold", route = "#b8292a", blip = 0xFFB8292A.toInt(),
+            label = "#3e3530", halo = "#dcc3a1",
+            placeFont = "Rye", roadFont = "HomemadeApple", roadCaps = false, // western slab towns, handwritten roads
+            route = "#b8292a", blip = 0xFFB8292A.toInt(),
             outline = "#4a3e33",
         ),
         // Fallout Pip-Boy, sampled from a reference screenshot.
@@ -39,7 +44,8 @@ object Themes {
             "Pip-Boy",
             land = "#1b3617", water = "#0f1a0c", shore = "#050c04", green = "#1d3a18", building = "#24451a",
             minor = "#2f6420", major = "#3a7a28", motorway = "#44902f", casing = "#0b1608",
-            label = "#6fcf55", halo = "#0b1608", font = "Noto Sans Bold", route = "#c8ffb8", blip = 0xFFC8FFB8.toInt(),
+            label = "#6fcf55", halo = "#0b1608", placeFont = "ShareTechMono", // stands in for Monofonto
+            route = "#c8ffb8", blip = 0xFFC8FFB8.toInt(),
             grid = 0x50346826,
         ),
         // GTA V Los Santos pause map: slate land, white roads, navy water, purple GPS line.
@@ -48,7 +54,7 @@ object Themes {
             "Los Santos",
             land = "#5f6a74", water = "#2c4a63", shore = "#1d3345", green = "#55705a", building = "#77818a",
             minor = "#c8ccd0", major = "#e3e5e7", motorway = "#f7f7f7", casing = "#3c444c",
-            label = "#ffffff", halo = "#1d2228", font = "Noto Sans Bold", route = "#b04fe0", blip = 0xFFFFFFFF.toInt(),
+            label = "#ffffff", halo = "#1d2228", placeFont = "BarlowCondensed", route = "#b04fe0", blip = 0xFFFFFFFF.toInt(),
         ),
     )
 }
@@ -71,7 +77,7 @@ fun styleJson(t: MapTheme): String {
 {
   "version": 8,
   "sources": {"omt": {"type": "vector", "url": "https://tiles.openfreemap.org/planet"}},
-  "glyphs": "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
+  "glyphs": "asset://fonts/{fontstack}/{range}.pbf",
   "layers": [
     {"id": "land", "type": "background", "paint": {"background-color": "${t.land}"}},
     {"id": "landcover", "type": "fill", "source": "omt", "source-layer": "landcover",
@@ -101,12 +107,12 @@ fun styleJson(t: MapTheme): String {
      "filter": ${roads("motorway")},
      "layout": {"line-cap": "round", "line-join": "round"}, "paint": {"line-color": "${t.motorway}", "line-width": $motorwayW}},
     {"id": "road-names", "type": "symbol", "source": "omt", "source-layer": "transportation_name", "minzoom": 13,
-     "layout": {"symbol-placement": "line", "text-field": $name, "text-font": ["${t.font}"], "text-size": 12,
-                "text-transform": "uppercase", "text-letter-spacing": 0.05},
+     "layout": {"symbol-placement": "line", "text-field": $name, "text-font": ["${t.roadFont}"], "text-size": 13,
+                "text-transform": "${if (t.roadCaps) "uppercase" else "none"}", "text-letter-spacing": 0.05},
      "paint": {"text-color": "${t.label}", "text-halo-color": "${t.halo}", "text-halo-width": 1.5}},
     {"id": "places", "type": "symbol", "source": "omt", "source-layer": "place",
      "filter": ${roads("city", "town", "village", "suburb", "neighbourhood")},
-     "layout": {"text-field": $name, "text-font": ["${t.font}"], "text-transform": "uppercase", "text-letter-spacing": 0.1,
+     "layout": {"text-field": $name, "text-font": ["${t.placeFont}"], "text-transform": "uppercase", "text-letter-spacing": 0.1,
                 "text-size": ["match", ["get", "class"], "city", 18, "town", 15, 12]},
      "paint": {"text-color": "${t.label}", "text-halo-color": "${t.halo}", "text-halo-width": 2}}
   ]

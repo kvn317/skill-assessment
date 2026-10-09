@@ -33,6 +33,7 @@ class MainActivity : Activity() {
     private lateinit var eta: TextView
     private val onFix: () -> Unit = { map.onLocation() }
     private val onNav: () -> Unit = { showNav() }
+    private val onTurn: () -> Unit = { map.refresh() }
 
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
@@ -133,6 +134,7 @@ class MainActivity : Activity() {
         super.onStart()
         map.start()
         Gps.add(this, onFix)
+        Compass.add(this, onTurn)
         Nav.add(onNav)
         showNav()
     }
@@ -140,6 +142,7 @@ class MainActivity : Activity() {
     override fun onStop() {
         map.stop()
         Gps.remove(onFix)
+        Compass.remove(onTurn)
         Nav.remove(onNav)
         super.onStop()
     }
