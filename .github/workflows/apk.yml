@@ -15,6 +15,8 @@ jobs:
         with:
           gradle-version: "8.14.3"
       - run: gradle assembleDebug
+      # Shows exactly what Android Auto sees (service, intent filters, car metadata) in the build log.
+      - run: $(ls -d $ANDROID_HOME/build-tools/*/ | sort -V | tail -1)aapt2 dump xmltree --file AndroidManifest.xml app/build/outputs/apk/debug/app-debug.apk
       - uses: actions/upload-artifact@v4
         with:
           name: irl-game-maps-apk
