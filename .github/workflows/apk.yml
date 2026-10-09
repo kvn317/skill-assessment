@@ -1,5 +1,7 @@
 name: apk
 on: [push, workflow_dispatch]
+permissions:
+  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -17,3 +19,12 @@ jobs:
         with:
           name: irl-game-maps-apk
           path: app/build/outputs/apk/debug/app-debug.apk
+      # Public direct link: /releases/latest/download/irl-game-maps.apk
+      - run: cp app/build/outputs/apk/debug/app-debug.apk irl-game-maps.apk
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest-build
+          name: IRL Game Maps (latest build)
+          body: "Built from ${{ github.sha }}. Install irl-game-maps.apk on your phone."
+          files: irl-game-maps.apk
+          make_latest: true

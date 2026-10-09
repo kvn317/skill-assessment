@@ -3,7 +3,7 @@
 Your real location drawn in three game-map styles: **Saint Denis II** (parchment), **Pip-Boy** (green terminal), and **San Andreas** (radar). Works on the phone and on Android Auto.
 
 ## Get the APK
-GitHub → **Actions** → latest **apk** run → download **irl-game-maps-apk** → unzip → install `app-debug.apk` (allow "install unknown apps").
+On your phone, open https://github.com/kvn317/skill-assessment/releases/latest/download/irl-game-maps.apk and install it (allow "install unknown apps"). Every push rebuilds it.
 
 Open the app once on the phone and grant location.
 
