@@ -14,9 +14,11 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.Executors
 import kotlin.math.PI
+import kotlin.math.atan
 import kotlin.math.cos
 import kotlin.math.floor
 import kotlin.math.ln
+import kotlin.math.sinh
 import kotlin.math.tan
 
 private const val TILE = 512 // @2x tiles
@@ -40,6 +42,13 @@ class TileMap(private val onUpdate: () -> Unit) {
     private val blipPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeWidth = 3f }
     private val scanPaint = Paint().apply { color = 0x50000000 }
     private val dst = RectF()
+    private val routePath = Path()
+    private val routePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = TILE / 40f
+        strokeCap = Paint.Cap.ROUND
+        strokeJoin = Paint.Join.ROUND
+    }
     private val arrow = Path().apply {
         val r = TILE / 24f
         moveTo(0f, -r); lineTo(r * 0.75f, r); lineTo(0f, r * 0.45f); lineTo(-r * 0.75f, r); close()
@@ -63,6 +72,14 @@ class TileMap(private val onUpdate: () -> Unit) {
         onUpdate()
     }
 
+    /** Lat/lon under screen point ([px], [py]) of a [w]x[h] map. */
+    fun latLonAt(px: Float, py: Float, w: Int, h: Int): Pair<Double, Double> {
+        val world = TILE.toDouble() * (1 shl zoom)
+        val mx = x + (px - w / 2f) / world
+        val my = y + (py - h / 2f) / world
+        return Math.toDegrees(atan(sinh(PI * (1 - 2 * my)))) to mx * 360 - 180
+    }
+
     /** Draws a [w]x[h] map with the center at ([cx], [cy]). */
     fun draw(c: Canvas, w: Int, h: Int, cx: Float = w / 2f, cy: Float = h / 2f) {
         val n = 1 shl zoom
@@ -81,6 +98,21 @@ class TileMap(private val onUpdate: () -> Unit) {
             }
         }
         if (theme.scanlines) for (sy in 0 until h step 4) c.drawLine(0f, sy.toFloat(), w.toFloat(), sy.toFloat(), scanPaint)
+        Nav.route?.let { r ->
+            routePath.rewind()
+            for (i in r.mx.indices) {
+                val px = (r.mx[i] * world - left).toFloat()
+                val py = (r.my[i] * world - top).toFloat()
+                if (i == 0) routePath.moveTo(px, py) else routePath.lineTo(px, py)
+            }
+            routePaint.color = theme.route
+            c.drawPath(routePath, routePaint)
+        }
+        Nav.dest?.let {
+            blipPaint.style = Paint.Style.FILL
+            blipPaint.color = theme.route
+            c.drawCircle((mercX(it.lon) * world - left).toFloat(), (mercY(it.lat) * world - top).toFloat(), TILE / 30f, blipPaint)
+        }
         Gps.last?.let {
             c.save()
             c.translate((mercX(it.longitude) * world - left).toFloat(), (mercY(it.latitude) * world - top).toFloat())
