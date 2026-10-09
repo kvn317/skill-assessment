@@ -17,7 +17,9 @@ import kotlin.math.PI
 import kotlin.math.atan
 import kotlin.math.cos
 import kotlin.math.floor
+import kotlin.math.hypot
 import kotlin.math.ln
+import kotlin.math.sin
 import kotlin.math.sinh
 import kotlin.math.tan
 
@@ -54,9 +56,21 @@ class TileMap(private val onUpdate: () -> Unit) {
         moveTo(0f, -r); lineTo(r * 0.75f, r); lineTo(0f, r * 0.45f); lineTo(-r * 0.75f, r); close()
     }
 
+    /** Rotate so the direction of travel points up; false = north up. */
+    var headingUp = true
+        set(v) {
+            field = v
+            onUpdate()
+        }
+
+    // Last reliable direction of travel; GPS bearing is noise when crawling or stopped.
+    private var heading = 0f
+    private val angle get() = if (headingUp) heading else 0f
+
     fun center(l: Location) {
         x = mercX(l.longitude)
         y = mercY(l.latitude)
+        if (l.hasBearing() && l.speed > 1.5f) heading = l.bearing // ~3 mph
         onUpdate()
     }
 
@@ -67,29 +81,41 @@ class TileMap(private val onUpdate: () -> Unit) {
 
     fun pan(dx: Float, dy: Float) {
         val world = TILE.toDouble() * (1 shl zoom)
-        x = ((x + dx / world) % 1 + 1) % 1
-        y = (y + dy / world).coerceIn(0.0, 1.0)
+        val (mx, my) = unrotate(dx, dy)
+        x = ((x + mx / world) % 1 + 1) % 1
+        y = (y + my / world).coerceIn(0.0, 1.0)
         onUpdate()
     }
 
     /** Lat/lon under screen point ([px], [py]) of a [w]x[h] map. */
     fun latLonAt(px: Float, py: Float, w: Int, h: Int): Pair<Double, Double> {
         val world = TILE.toDouble() * (1 shl zoom)
-        val mx = x + (px - w / 2f) / world
-        val my = y + (py - h / 2f) / world
+        val (ox, oy) = unrotate(px - w / 2f, py - h / 2f)
+        val mx = x + ox / world
+        val my = y + oy / world
         return Math.toDegrees(atan(sinh(PI * (1 - 2 * my)))) to mx * 360 - 180
     }
 
-    /** Draws a [w]x[h] map with the center at ([cx], [cy]). */
+    /** Screen-space offset -> north-up map offset. */
+    private fun unrotate(dx: Float, dy: Float): Pair<Double, Double> {
+        val a = Math.toRadians(angle.toDouble())
+        return dx * cos(a) - dy * sin(a) to dx * sin(a) + dy * cos(a)
+    }
+
+    /** Draws a [w]x[h] map with the current position at ([cx], [cy]). */
     fun draw(c: Canvas, w: Int, h: Int, cx: Float = w / 2f, cy: Float = h / 2f) {
         val n = 1 shl zoom
         val world = TILE.toDouble() * n
         val left = x * world - cx
         val top = y * world - cy
+        // Radius from the pivot to the farthest screen corner, so the rotated tiles still cover the screen.
+        val r = hypot(maxOf(cx, w - cx), maxOf(cy, h - cy))
         c.drawColor(theme.background)
-        for (ty in floor(top / TILE).toInt()..floor((top + h) / TILE).toInt()) {
+        c.save()
+        c.rotate(-angle, cx, cy)
+        for (ty in floor((y * world - r) / TILE).toInt()..floor((y * world + r) / TILE).toInt()) {
             if (ty !in 0 until n) continue
-            for (tx in floor(left / TILE).toInt()..floor((left + w) / TILE).toInt()) {
+            for (tx in floor((x * world - r) / TILE).toInt()..floor((x * world + r) / TILE).toInt()) {
                 val bmp = tile(zoom, Math.floorMod(tx, n), ty) ?: continue
                 val l = (tx * TILE.toDouble() - left).toFloat()
                 val t = (ty * TILE.toDouble() - top).toFloat()
@@ -97,7 +123,6 @@ class TileMap(private val onUpdate: () -> Unit) {
                 c.drawBitmap(bmp, null, dst, paint)
             }
         }
-        if (theme.scanlines) for (sy in 0 until h step 4) c.drawLine(0f, sy.toFloat(), w.toFloat(), sy.toFloat(), scanPaint)
         Nav.route?.let { r ->
             routePath.rewind()
             for (i in r.mx.indices) {
@@ -125,6 +150,8 @@ class TileMap(private val onUpdate: () -> Unit) {
             c.drawPath(arrow, blipPaint)
             c.restore()
         }
+        c.restore()
+        if (theme.scanlines) for (sy in 0 until h step 4) c.drawLine(0f, sy.toFloat(), w.toFloat(), sy.toFloat(), scanPaint)
     }
 
     private fun tile(z: Int, tx: Int, ty: Int): Bitmap? {

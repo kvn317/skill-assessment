@@ -19,6 +19,8 @@ Open the app once on the phone and grant location.
 - Tapping a map link or "Share → IRL Game Maps" on the phone (geo: / google.navigation: links) starts a route too.
 - Reroutes automatically after ~3 seconds off route.
 
+The map turns with your direction of travel (it holds still below ~3 mph). On the phone, the **⬆ Heading / N North** button switches between heading-up and north-up; the car is always heading-up.
+
 In the car, tap the theme name to cycle styles and +/− to zoom. The map follows you.
 
 Map tiles: © OpenStreetMap contributors, © CARTO. Search: Photon (komoot). Routing: OSRM public demo server (fair use, no uptime guarantee). Not affiliated with Rockstar or Bethesda.

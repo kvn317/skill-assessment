@@ -92,7 +92,14 @@ class MainActivity : Activity() {
                 "−" to { map.zoomBy(-1) },
                 "◎" to { mapView.follow = true; mapView.onLocation() },
                 "+" to { map.zoomBy(1) },
-            )))
+            )).apply {
+                addView(button("⬆ Heading") {}.apply {
+                    setOnClickListener {
+                        map.headingUp = !map.headingUp
+                        text = if (map.headingUp) "⬆ Heading" else "N North"
+                    }
+                }, 2)
+            })
         }
         setContentView(FrameLayout(this).apply {
             fitsSystemWindows = true

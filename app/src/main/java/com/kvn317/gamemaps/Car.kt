@@ -186,7 +186,7 @@ class CarMapScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
         val c = s.lockCanvas(null)
         try {
             val a = area ?: Rect(0, 0, c.width, c.height)
-            map.draw(c, c.width, c.height, a.exactCenterX(), a.exactCenterY())
+            map.draw(c, c.width, c.height, a.exactCenterX(), a.top + a.height() * 0.7f) // more road ahead than behind
         } finally {
             s.unlockCanvasAndPost(c)
         }
