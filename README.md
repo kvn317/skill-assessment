@@ -15,6 +15,8 @@ Open the app once on the phone and grant location.
 ## Navigation
 - **Phone:** search at the top, or long-press the map to drop a pin. The banner shows the next turn, ETA and an End button.
 - **Car:** 🔍 to search (voice input works while driving), ✕ to end. Turn cards and ETA show in Android Auto, with spoken prompts that duck your music.
+- **"Hey Google, navigate to …"** in Android Auto routes with this app once it's your active navigation app (open it on the car screen once; Android Auto remembers the last nav app you used).
+- Tapping a map link or "Share → IRL Game Maps" on the phone (geo: / google.navigation: links) starts a route too.
 - Reroutes automatically after ~3 seconds off route.
 
 In the car, tap the theme name to cycle styles and +/− to zoom. The map follows you.

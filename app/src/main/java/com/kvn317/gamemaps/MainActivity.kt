@@ -3,6 +3,7 @@ package com.kvn317.gamemaps
 import android.Manifest
 import android.app.Activity
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Canvas
 import android.os.Bundle
@@ -22,6 +23,7 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import kotlin.math.roundToInt
 
 private const val PANEL = 0xCC000000.toInt()
@@ -100,6 +102,21 @@ class MainActivity : Activity() {
         })
         if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION), 0)
+        }
+        if (state == null) onNewIntent(intent) // not again after rotation
+    }
+
+    /** geo: / google.navigation: links from the Assistant, Maps shares, contacts, etc. */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        val uri = intent.data ?: return
+        Places.fromUri(uri) { p ->
+            if (p == null) {
+                Toast.makeText(this, "Couldn't find that place", Toast.LENGTH_LONG).show()
+                return@fromUri
+            }
+            mapView.follow = true
+            Nav.start(this, p)
         }
     }
 

@@ -5,6 +5,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
+import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import androidx.car.app.model.Distance
@@ -41,6 +42,26 @@ fun http(url: String, cb: (String?) -> Unit) = io.execute {
 class Place(val name: String, val detail: String, val lat: Double, val lon: Double)
 
 object Places {
+    private val LAT_LON = Regex("""^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*(?:\((.*)\))?""")
+
+    /**
+     * Resolves a voice/share destination: geo:lat,lon / geo:0,0?q=place / geo:0,0?q=lat,lon(label)
+     * or google.navigation:q=place. Free text goes through [search] and takes the top hit.
+     */
+    fun fromUri(uri: Uri, cb: (Place?) -> Unit) {
+        val parts = (uri.schemeSpecificPart ?: "").split('?', limit = 2)
+        val q = parts.flatMap { it.split('&') }.firstOrNull { it.startsWith("q=") }?.substring(2)?.replace('+', ' ')?.trim()
+        for (text in listOf(q, parts[0])) {
+            val m = text?.let { LAT_LON.find(it) } ?: continue
+            val lat = m.groupValues[1].toDouble()
+            val lon = m.groupValues[2].toDouble()
+            if (lat == 0.0 && lon == 0.0) continue // "geo:0,0" means "use q"
+            return cb(Place(m.groupValues[3].ifBlank { "Destination" }, "", lat, lon))
+        }
+        if (q.isNullOrBlank()) return cb(null)
+        search(q) { cb(it.firstOrNull()) }
+    }
+
     /** Photon (OSM) search, biased toward the current location. */
     fun search(q: String, cb: (List<Place>) -> Unit) {
         var url = "https://photon.komoot.io/api/?limit=5&q=" + URLEncoder.encode(q, "UTF-8")

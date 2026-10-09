@@ -14,7 +14,9 @@ import android.os.IBinder
 import androidx.car.app.AppManager
 import androidx.car.app.CarAppService
 import androidx.car.app.CarContext
+import androidx.car.app.CarToast
 import androidx.car.app.Screen
+import androidx.car.app.ScreenManager
 import androidx.car.app.Session
 import androidx.car.app.SurfaceCallback
 import androidx.car.app.SurfaceContainer
@@ -44,7 +46,25 @@ class CarService : CarAppService() {
     override fun createHostValidator(): HostValidator = HostValidator.ALLOW_ALL_HOSTS_VALIDATOR
 
     override fun onCreateSession(): Session = object : Session() {
-        override fun onCreateScreen(intent: Intent): Screen = CarMapScreen(carContext)
+        override fun onCreateScreen(intent: Intent): Screen {
+            handle(intent)
+            return CarMapScreen(carContext)
+        }
+
+        override fun onNewIntent(intent: Intent) {
+            if (intent.action == CarContext.ACTION_NAVIGATE) carContext.getCarService(ScreenManager::class.java).popToRoot()
+            handle(intent)
+        }
+
+        /** "Hey Google, navigate to …" arrives as ACTION_NAVIGATE with a geo: URI. */
+        private fun handle(intent: Intent) {
+            if (intent.action != CarContext.ACTION_NAVIGATE) return
+            val uri = intent.data ?: return
+            Places.fromUri(uri) { p ->
+                if (p != null) Nav.start(carContext, p)
+                else CarToast.makeText(carContext, "Couldn't find that place", CarToast.LENGTH_LONG).show()
+            }
+        }
     }
 }
 
