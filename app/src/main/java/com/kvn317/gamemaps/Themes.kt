@@ -19,16 +19,20 @@ class MapTheme(
     val blip: Int,
     /** HUD grid line color drawn over the map; 0 = none. */
     val grid: Int = 0,
+    /** Building outline color (defaults to [shore]). */
+    val outline: String = shore,
 )
 
 object Themes {
     val all = listOf(
-        // Red Dead Redemption 2 style: ink on parchment.
+        // Red Dead Redemption 2, sampled from in-game map screenshots: one charcoal ink on parchment,
+        // grey-olive water, buildings drawn as outlines only, dashed trails.
         MapTheme(
             "Saint Denis II",
-            land = "#d8c39a", water = "#9cab9a", shore = "#5a4630", green = "#c7b688", building = "#c4ab7c",
-            minor = "#8a6a48", major = "#6a4628", motorway = "#4a2e16", casing = "#d8c39a",
-            label = "#3b2a1a", halo = "#e6d6b0", font = "Noto Sans Italic", route = "#b22222", blip = 0xFF8B1A1A.toInt(),
+            land = "#dcc3a1", water = "#a8a28f", shore = "#7d7868", green = "#d6bd9a", building = "#dcc3a1",
+            minor = "#3e3530", major = "#3e3530", motorway = "#3e3530", casing = "#dcc3a1",
+            label = "#3e3530", halo = "#dcc3a1", font = "Noto Sans Bold", route = "#b8292a", blip = 0xFFB8292A.toInt(),
+            outline = "#4a3e33",
         ),
         // Fallout Pip-Boy, sampled from a reference screenshot.
         MapTheme(
@@ -77,7 +81,13 @@ fun styleJson(t: MapTheme): String {
     {"id": "shore", "type": "line", "source": "omt", "source-layer": "water", "paint": {"line-color": "${t.shore}", "line-width": 1.5}},
     {"id": "waterway", "type": "line", "source": "omt", "source-layer": "waterway", "paint": {"line-color": "${t.water}", "line-width": 2}},
     {"id": "building", "type": "fill", "source": "omt", "source-layer": "building", "minzoom": 13,
-     "paint": {"fill-color": "${t.building}", "fill-outline-color": "${t.shore}"}},
+     "paint": {"fill-color": "${t.building}", "fill-outline-color": "${t.outline}"}},
+    {"id": "trails", "type": "line", "source": "omt", "source-layer": "transportation", "minzoom": 13,
+     "filter": ${roads("path", "track")},
+     "paint": {"line-color": "${t.minor}", "line-width": 1.2, "line-dasharray": [3, 2]}},
+    {"id": "rail", "type": "line", "source": "omt", "source-layer": "transportation",
+     "filter": ${roads("rail")},
+     "paint": {"line-color": "${t.motorway}", "line-width": 3, "line-dasharray": [1, 1]}},
     {"id": "minor", "type": "line", "source": "omt", "source-layer": "transportation",
      "filter": ${roads("minor", "service", "tertiary")},
      "layout": {"line-cap": "round", "line-join": "round"}, "paint": {"line-color": "${t.minor}", "line-width": $minorW}},
