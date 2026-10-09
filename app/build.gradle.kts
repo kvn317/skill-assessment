@@ -10,9 +10,27 @@ android {
         applicationId = "com.kvn317.gamemaps"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
+        // Play rejects re-used version codes, so every CI build gets a new one.
+        versionCode = 100 + (System.getenv("GITHUB_RUN_NUMBER")?.toInt() ?: 0)
         versionName = "2.0"
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") } // phones only; keeps MapLibre's native libs small
+    }
+    // Upload key for Google Play, supplied by CI from repository secrets (never committed: this repo is public).
+    val keystore = System.getenv("UPLOAD_KEYSTORE")
+    signingConfigs {
+        create("upload") {
+            if (keystore != null) {
+                storeFile = file(keystore)
+                storePassword = System.getenv("UPLOAD_KEYSTORE_PASSWORD")
+                keyAlias = "upload"
+                keyPassword = System.getenv("UPLOAD_KEYSTORE_PASSWORD")
+            }
+        }
+    }
+    buildTypes {
+        release {
+            if (keystore != null) signingConfig = signingConfigs.getByName("upload")
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

@@ -5,6 +5,9 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      UPLOAD_KEYSTORE_B64: ${{ secrets.UPLOAD_KEYSTORE_B64 }}
+      UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.UPLOAD_KEYSTORE_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -15,8 +18,14 @@ jobs:
         with:
           gradle-version: "8.14.3"
       - run: gradle assembleDebug
-      # Shows exactly what Android Auto sees (service, intent filters, car metadata) in the build log.
-      - run: $(ls -d $ANDROID_HOME/build-tools/*/ | sort -V | tail -1)aapt2 dump xmltree --file AndroidManifest.xml app/build/outputs/apk/debug/app-debug.apk
+      # Signed release for Google Play (Android Auto only runs Car App Library apps installed from Play).
+      # Skipped until the UPLOAD_KEYSTORE_B64 / UPLOAD_KEYSTORE_PASSWORD repository secrets exist.
+      - if: env.UPLOAD_KEYSTORE_B64 != ''
+        run: |
+          echo "$UPLOAD_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/upload.jks"
+          UPLOAD_KEYSTORE="$RUNNER_TEMP/upload.jks" gradle bundleRelease assembleRelease
+          cp app/build/outputs/bundle/release/app-release.aab irl-game-maps-play.aab
+          cp app/build/outputs/apk/release/app-release.apk irl-game-maps-play.apk
       - uses: actions/upload-artifact@v4
         with:
           name: irl-game-maps-apk
@@ -27,6 +36,9 @@ jobs:
         with:
           tag_name: latest-build
           name: IRL Game Maps (latest build)
-          body: "Built from ${{ github.sha }}. Install irl-game-maps.apk on your phone."
-          files: irl-game-maps.apk
+          body: "Built from ${{ github.sha }}. Sideload: irl-game-maps.apk. Google Play (needed for Android Auto): upload irl-game-maps-play.aab (or .apk for Internal app sharing)."
+          files: |
+            irl-game-maps.apk
+            irl-game-maps-play.aab
+            irl-game-maps-play.apk
           make_latest: true

@@ -7,7 +7,10 @@ On your phone, open https://github.com/kvn317/skill-assessment/releases/latest/d
 
 Open the app once on the phone and grant location.
 
-## Android Auto (sideloaded apps)
+## Android Auto needs the Google Play install
+Android Auto only runs Car App Library apps (like this one) when they're installed from Google Play; "Unknown sources" doesn't cover them. CI builds a Play-signed release when the repository secrets `UPLOAD_KEYSTORE_B64` and `UPLOAD_KEYSTORE_PASSWORD` are set: grab `irl-game-maps-play.aab` (Internal testing) or `irl-game-maps-play.apk` (Internal app sharing) from the latest release and upload it in Play Console. Uninstall the sideloaded copy first (different signature).
+
+## Android Auto developer settings
 1. Android Auto settings → tap **Version** 10× to enable developer mode.
 2. ⋮ → **Developer settings** → enable **Unknown sources**.
 3. Reconnect to the car; "IRL Game Maps" appears in the launcher.

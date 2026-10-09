@@ -4,3 +4,5 @@ wrangler.toml
 .gradle/
 build/
 local.properties
+*.jks
+*.keystore
