@@ -28,7 +28,7 @@ object Themes {
         // Red Dead Redemption 2, sampled from in-game map screenshots: one charcoal ink on parchment,
         // grey-olive water, buildings drawn as outlines only, dashed trails.
         MapTheme(
-            "Saint Denis II",
+            "RDR2",
             land = "#dcc3a1", water = "#a8a28f", shore = "#7d7868", green = "#d6bd9a", building = "#dcc3a1",
             minor = "#3e3530", major = "#3e3530", motorway = "#3e3530", casing = "#dcc3a1",
             label = "#3e3530", halo = "#dcc3a1", font = "Noto Sans Bold", route = "#b8292a", blip = 0xFFB8292A.toInt(),
