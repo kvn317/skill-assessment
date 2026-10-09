@@ -88,15 +88,13 @@ object Places {
 class Step(val instruction: String, val road: String, val angle: Int?, val carType: Int, val start: Double)
 
 class Route(
-    private val lats: DoubleArray,
-    private val lons: DoubleArray,
+    val lats: DoubleArray,
+    val lons: DoubleArray,
     private val cum: DoubleArray,
     val steps: List<Step>,
     val duration: Double,
 ) {
     val total = cum.last()
-    val mx = DoubleArray(lons.size) { TileMap.mercX(lons[it]) }
-    val my = DoubleArray(lats.size) { TileMap.mercY(lats[it]) }
 
     /** Snaps a position to the route: (meters along it, meters off it). */
     // ponytail: scans the whole line each fix and can snap to a parallel stretch of the same route; window it if that bites

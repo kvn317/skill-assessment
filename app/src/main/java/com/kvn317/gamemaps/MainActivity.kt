@@ -2,15 +2,10 @@ package com.kvn317.gamemaps
 
 import android.Manifest
 import android.app.Activity
-import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.graphics.Canvas
 import android.os.Bundle
-import android.view.GestureDetector
 import android.view.Gravity
-import android.view.HapticFeedbackConstants
-import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
@@ -28,7 +23,7 @@ import kotlin.math.roundToInt
 private const val PANEL = 0xCC000000.toInt()
 
 class MainActivity : Activity() {
-    private lateinit var mapView: MapView
+    private lateinit var map: GameMap
     private lateinit var query: EditText
     private lateinit var results: LinearLayout
     private lateinit var searchBox: LinearLayout
@@ -36,14 +31,17 @@ class MainActivity : Activity() {
     private lateinit var arrow: ImageView
     private lateinit var cue: TextView
     private lateinit var eta: TextView
-    private val onFix: () -> Unit = { mapView.onLocation() }
+    private val onFix: () -> Unit = { map.onLocation() }
     private val onNav: () -> Unit = { showNav() }
 
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        mapView = MapView(this)
-        val map = mapView.map
+        map = GameMap(this)
+        map.onLongPress = { p ->
+            map.follow = true
+            Nav.start(this, Place("Dropped pin", "", p.latitude, p.longitude))
+        }
 
         query = EditText(this).apply {
             hint = "Where to? (or long-press the map)"
@@ -89,7 +87,7 @@ class MainActivity : Activity() {
             addView(row(Themes.all.map { t -> t.name to { map.theme = t } }))
             addView(row(listOf(
                 "−" to { map.zoomBy(-1) },
-                "◎" to { mapView.follow = true; mapView.onLocation() },
+                "◎" to { map.recenter() },
                 "+" to { map.zoomBy(1) },
             )).apply {
                 addView(button("⬆ Heading") {}.apply {
@@ -104,7 +102,7 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             fitsSystemWindows = true
             addView(top)
-            addView(mapView, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
+            addView(map, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
             addView(bottom)
         })
         if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
@@ -122,7 +120,7 @@ class MainActivity : Activity() {
                 Toast.makeText(this, "Couldn't find that place", Toast.LENGTH_LONG).show()
                 return@fromUri
             }
-            mapView.follow = true
+            map.follow = true
             Nav.start(this, p)
         }
     }
@@ -133,15 +131,22 @@ class MainActivity : Activity() {
 
     override fun onStart() {
         super.onStart()
+        map.start()
         Gps.add(this, onFix)
         Nav.add(onNav)
         showNav()
     }
 
     override fun onStop() {
+        map.stop()
         Gps.remove(onFix)
         Nav.remove(onNav)
         super.onStop()
+    }
+
+    override fun onDestroy() {
+        map.destroy()
+        super.onDestroy()
     }
 
     private fun find() {
@@ -158,7 +163,7 @@ class MainActivity : Activity() {
                 results.addView(button(label) {
                     results.removeAllViews()
                     query.setText("")
-                    mapView.follow = true
+                    map.follow = true
                     Nav.start(this, p)
                 }.apply { gravity = Gravity.START or Gravity.CENTER_VERTICAL })
             }
@@ -168,7 +173,7 @@ class MainActivity : Activity() {
     private fun showNav() {
         searchBox.visibility = if (Nav.active) View.GONE else View.VISIBLE
         banner.visibility = if (Nav.active) View.VISIBLE else View.GONE
-        mapView.invalidate()
+        map.refresh()
         val s = Nav.route?.steps?.getOrNull(Nav.next)
         if (s == null) {
             arrow.setImageDrawable(null)
@@ -190,41 +195,5 @@ class MainActivity : Activity() {
     private fun row(items: List<Pair<String, () -> Unit>>) = LinearLayout(this).apply {
         gravity = Gravity.CENTER
         for ((label, f) in items) addView(button(label, f))
-    }
-}
-
-class MapView(ctx: Context) : View(ctx) {
-    val map = TileMap(::invalidate)
-    var follow = true
-
-    private val gestures = GestureDetector(ctx, object : GestureDetector.SimpleOnGestureListener() {
-        override fun onDown(e: MotionEvent) = true
-
-        override fun onScroll(e1: MotionEvent?, e2: MotionEvent, dx: Float, dy: Float): Boolean {
-            follow = false
-            map.pan(dx, dy)
-            return true
-        }
-
-        override fun onDoubleTap(e: MotionEvent): Boolean {
-            map.zoomBy(1)
-            return true
-        }
-
-        override fun onLongPress(e: MotionEvent) {
-            performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-            val (lat, lon) = map.latLonAt(e.x, e.y, width, height)
-            follow = true
-            Nav.start(context, Place("Dropped pin", "", lat, lon))
-        }
-    })
-
-    override fun onTouchEvent(e: MotionEvent) = gestures.onTouchEvent(e)
-
-    override fun onDraw(c: Canvas) = map.draw(c, width, height)
-
-    fun onLocation() {
-        val l = Gps.last
-        if (follow && l != null) map.center(l) else invalidate()
     }
 }

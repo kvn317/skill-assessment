@@ -4,11 +4,14 @@ import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.Presentation
 import android.app.Service
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.graphics.Rect
+import android.hardware.display.DisplayManager
+import android.hardware.display.VirtualDisplay
 import android.os.Build
 import android.os.IBinder
 import androidx.car.app.AppManager
@@ -70,12 +73,16 @@ class CarService : CarAppService() {
 
 /** Full-screen themed map on the car display that follows the car and shows turn-by-turn guidance. */
 class CarMapScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
-    private val map = TileMap(::render)
-    private var surface: SurfaceContainer? = null
+    private var carTheme = Themes.all[0]
+    // The map is a normal Android view shown on the car surface through a private virtual display.
+    private var display: VirtualDisplay? = null
+    private var presentation: Presentation? = null
+    private var map: GameMap? = null
+    private var surfaceSize = Rect()
     private var area: Rect? = null
     private val navManager = ctx.getCarService(NavigationManager::class.java)
     private var navStarted = false
-    private val onFix: () -> Unit = { Gps.last?.let(map::center) }
+    private val onFix: () -> Unit = { map?.onLocation() }
     private val onNav: () -> Unit = {
         // Tells Android Auto (and other nav apps) whether we're guiding right now.
         if (Nav.active != navStarted) {
@@ -83,7 +90,7 @@ class CarMapScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
             if (navStarted) navManager.navigationStarted() else navManager.navigationEnded()
         }
         invalidate()
-        render()
+        map?.refresh()
     }
 
     init {
@@ -123,16 +130,17 @@ class CarMapScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
 
     override fun onGetTemplate(): Template {
         val strip = ActionStrip.Builder()
-            .addAction(action(title = map.theme.name) {
-                map.theme = Themes.all[(Themes.all.indexOf(map.theme) + 1) % Themes.all.size]
+            .addAction(action(title = carTheme.name) {
+                carTheme = Themes.all[(Themes.all.indexOf(carTheme) + 1) % Themes.all.size]
+                map?.theme = carTheme
                 invalidate()
             })
             .addAction(
                 if (Nav.active) action(icon = R.drawable.ic_close) { Nav.stop() }
                 else action(icon = R.drawable.ic_search) { screenManager.push(CarSearchScreen(carContext)) }
             )
-            .addAction(action(icon = R.drawable.ic_zoom_in) { map.zoomBy(1) })
-            .addAction(action(icon = R.drawable.ic_zoom_out) { map.zoomBy(-1) })
+            .addAction(action(icon = R.drawable.ic_zoom_in) { map?.zoomBy(1) })
+            .addAction(action(icon = R.drawable.ic_zoom_out) { map?.zoomBy(-1) })
             .build()
         val b = NavigationTemplate.Builder().setActionStrip(strip)
         if (Nav.active) {
@@ -167,29 +175,46 @@ class CarMapScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
     }.build()
 
     override fun onSurfaceAvailable(container: SurfaceContainer) {
-        surface = container
-        render()
+        val surface = container.surface ?: return
+        surfaceSize = Rect(0, 0, container.width, container.height)
+        val vd = carContext.getSystemService(DisplayManager::class.java)
+            .createVirtualDisplay("IrlGameMaps", container.width, container.height, container.dpi, surface, 0)
+        display = vd
+        presentation = Presentation(carContext, vd.display).apply {
+            map = GameMap(context).also {
+                it.theme = carTheme
+                setContentView(it)
+            }
+            show()
+        }
+        map?.start()
+        updatePadding()
     }
 
     override fun onVisibleAreaChanged(visibleArea: Rect) {
         area = visibleArea
-        render()
+        updatePadding()
     }
 
     override fun onSurfaceDestroyed(container: SurfaceContainer) {
-        surface = null
+        map?.stop()
+        map?.destroy()
+        presentation?.dismiss()
+        display?.release()
+        map = null
+        presentation = null
+        display = null
     }
 
-    private fun render() {
-        val s = surface?.surface ?: return
-        if (!s.isValid) return
-        val c = s.lockCanvas(null)
-        try {
-            val a = area ?: Rect(0, 0, c.width, c.height)
-            map.draw(c, c.width, c.height, a.exactCenterX(), a.top + a.height() * 0.7f) // more road ahead than behind
-        } finally {
-            s.unlockCanvasAndPost(c)
-        }
+    /** Puts the car 70% of the way down the unobstructed area, showing more road ahead than behind. */
+    private fun updatePadding() {
+        val m = map ?: return
+        val a = area ?: surfaceSize
+        val h = surfaceSize.height().toDouble()
+        val y = a.top + a.height() * 0.7
+        val bottom = h - a.bottom
+        m.padding = doubleArrayOf(a.left.toDouble(), 2 * y - a.bottom, (surfaceSize.width() - a.right).toDouble(), bottom)
+        m.onLocation()
     }
 }
 
