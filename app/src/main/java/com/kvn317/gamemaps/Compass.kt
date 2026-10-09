@@ -43,10 +43,10 @@ object Compass : SensorEventListener {
         }
     }
 
+    @Suppress("DEPRECATION") // defaultDisplay: Activity.display needs API 30
     override fun onSensorChanged(e: SensorEvent) {
         SensorManager.getRotationMatrixFromVector(rot, e.values)
         // Measure along the screen's "up", whichever way the phone is rotated.
-        @Suppress("DEPRECATION")
         val (x, y) = when (window?.defaultDisplay?.rotation) {
             Surface.ROTATION_90 -> SensorManager.AXIS_Y to SensorManager.AXIS_MINUS_X
             Surface.ROTATION_180 -> SensorManager.AXIS_MINUS_X to SensorManager.AXIS_MINUS_Y
