@@ -19,7 +19,6 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.EditText
-import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -101,11 +100,12 @@ class MainActivity : Activity() {
                 }, 2)
             })
         }
-        setContentView(FrameLayout(this).apply {
+        setContentView(LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
             fitsSystemWindows = true
-            addView(mapView)
-            addView(top, FrameLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT, Gravity.TOP))
-            addView(bottom, FrameLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT, Gravity.BOTTOM))
+            addView(top)
+            addView(mapView, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
+            addView(bottom)
         })
         if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION), 0)

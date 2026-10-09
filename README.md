@@ -23,4 +23,4 @@ The map turns with your direction of travel (it holds still below ~3 mph). On th
 
 In the car, tap the theme name to cycle styles and +/− to zoom. The map follows you.
 
-Map tiles: © OpenStreetMap contributors, © CARTO. Search: Photon (komoot). Routing: OSRM public demo server (fair use, no uptime guarantee). Not affiliated with Rockstar or Bethesda.
+Map tiles: © OpenStreetMap contributors (tile.openstreetmap.org, light personal use). Search: Photon (komoot). Routing: OSRM public demo server (fair use, no uptime guarantee). Not affiliated with Rockstar or Bethesda.

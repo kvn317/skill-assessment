@@ -26,7 +26,7 @@ import kotlin.math.sin
 import kotlin.math.sinh
 import kotlin.math.tan
 
-private const val TILE = 512 // @2x tiles
+private const val TILE = 512 // 256px OSM tiles drawn 2x so labels are readable on phone and car screens
 
 /** Slippy map drawn onto any Canvas; shared by the phone view and the Android Auto surface. Main thread only. */
 class TileMap(private val onUpdate: () -> Unit) {
@@ -46,6 +46,11 @@ class TileMap(private val onUpdate: () -> Unit) {
     private val paint = Paint(Paint.FILTER_BITMAP_FLAG).apply { colorFilter = theme.filter }
     private val blipPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeWidth = 3f }
     private val scanPaint = Paint().apply { color = 0x50000000 }
+    private val creditPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textSize = TILE / 22f
+        color = 0xFFFFFFFF.toInt()
+        setShadowLayer(3f, 0f, 0f, 0xFF000000.toInt())
+    }
     private val dst = RectF()
     private val routePath = Path()
     private val routePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -174,6 +179,7 @@ class TileMap(private val onUpdate: () -> Unit) {
         }
         c.restore()
         if (theme.scanlines) for (sy in 0 until h step 4) c.drawLine(0f, sy.toFloat(), w.toFloat(), sy.toFloat(), scanPaint)
+        c.drawText("© OpenStreetMap contributors", 12f, h - 12f, creditPaint)
     }
 
     private fun tile(z: Int, tx: Int, ty: Int): Bitmap? {
