@@ -3,6 +3,12 @@ package com.kvn317.gamemaps
 import android.Manifest
 import android.app.Activity
 import android.content.Intent
+import android.location.Location
+import android.location.LocationManager
+import android.os.Handler
+import android.os.Looper
+import android.text.Editable
+import android.text.TextWatcher
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.view.Gravity
@@ -34,11 +40,16 @@ class MainActivity : Activity() {
     private val onFix: () -> Unit = { map.onLocation() }
     private val onNav: () -> Unit = { showNav() }
     private val onTurn: () -> Unit = { map.refresh() }
+    private val typing = Handler(Looper.getMainLooper())
+    private var searchCount = 0
+    private var lastSearched = ""
+    private var warnedLocationOff = false
 
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         map = GameMap(this)
+        map.theme = Themes.saved(this)
         map.onLongPress = { p ->
             map.follow = true
             Nav.start(this, Place("Dropped pin", "", p.latitude, p.longitude))
@@ -49,6 +60,20 @@ class MainActivity : Activity() {
             isSingleLine = true
             imeOptions = EditorInfo.IME_ACTION_SEARCH
             setOnEditorActionListener { _, _, _ -> find(); true }
+            // Suggestions as you type, once typing pauses (keeps us within Photon's fair use).
+            addTextChangedListener(object : TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+                override fun afterTextChanged(s: Editable?) {
+                    typing.removeCallbacksAndMessages(null)
+                    if ((s?.trim()?.length ?: 0) >= 3) typing.postDelayed({ find(hideKeyboard = false) }, 500)
+                    else {
+                        searchCount++ // drop replies for the old text
+                        lastSearched = ""
+                        results.removeAllViews()
+                    }
+                }
+            })
         }
         results = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         searchBox = LinearLayout(this).apply {
@@ -64,15 +89,29 @@ class MainActivity : Activity() {
         cue = TextView(this).apply { textSize = 20f }
         eta = TextView(this)
         banner = LinearLayout(this).apply {
-            gravity = Gravity.CENTER_VERTICAL
-            addView(arrow, LinearLayout.LayoutParams(144, 144))
+            orientation = LinearLayout.VERTICAL
             addView(LinearLayout(context).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding(24, 0, 24, 0)
-                addView(cue)
-                addView(eta)
-            }, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
-            addView(button("End") { Nav.stop() })
+                gravity = Gravity.CENTER_VERTICAL
+                addView(arrow, LinearLayout.LayoutParams(144, 144))
+                addView(LinearLayout(context).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setPadding(24, 0, 24, 0)
+                    addView(cue)
+                    addView(eta)
+                }, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
+            })
+            addView(LinearLayout(context).apply {
+                gravity = Gravity.END
+                addView(button("Overview") { map.overview() })
+                addView(button(if (Speech.muted) "🔇 Muted" else "🔊 Sound") {}.apply {
+                    setOnClickListener {
+                        Speech.muted = !Speech.muted
+                        if (Speech.muted) Speech.stop()
+                        text = if (Speech.muted) "🔇 Muted" else "🔊 Sound"
+                    }
+                })
+                addView(button("End") { Nav.stop() })
+            })
         }
 
         val top = LinearLayout(this).apply {
@@ -85,7 +124,7 @@ class MainActivity : Activity() {
         val bottom = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(PANEL)
-            addView(row(Themes.all.map { t -> t.name to { map.theme = t } }))
+            addView(row(Themes.all.map { t -> t.name to { map.theme = t; Themes.save(this@MainActivity, t) } }))
             addView(row(listOf(
                 "−" to { map.zoomBy(-1) },
                 "◎" to { map.recenter() },
@@ -127,19 +166,50 @@ class MainActivity : Activity() {
     }
 
     override fun onRequestPermissionsResult(code: Int, permissions: Array<out String>, results: IntArray) {
+        if (results.none { it == PackageManager.PERMISSION_GRANTED }) {
+            Toast.makeText(this, "Location permission is needed to show where you are", Toast.LENGTH_LONG).show()
+            return
+        }
         Gps.add(this, onFix) // starts the feed now that it's allowed
+        warnIfLocationOff()
+    }
+
+    private fun warnIfLocationOff() {
+        if (warnedLocationOff) return
+        val lm = getSystemService(LocationManager::class.java)
+        val on = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER).any { it in lm.allProviders && lm.isProviderEnabled(it) }
+        if (!on) {
+            warnedLocationOff = true
+            Toast.makeText(this, "Location is turned off. Turn it on in Settings to see yourself on the map.", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun hasLocationPermission() = listOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
+        .any { checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }
+
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        // Back closes the search results first, like Google Maps.
+        if (results.childCount > 0) {
+            query.setText("") // the watcher clears results and cancels searches
+            return
+        }
+        @Suppress("DEPRECATION")
+        super.onBackPressed()
     }
 
     override fun onStart() {
         super.onStart()
         map.start()
         Gps.add(this, onFix)
+        if (hasLocationPermission()) warnIfLocationOff()
         Compass.add(this, onTurn)
         Nav.add(onNav)
         showNav()
     }
 
     override fun onStop() {
+        typing.removeCallbacksAndMessages(null)
         map.stop()
         Gps.remove(onFix)
         Compass.remove(onTurn)
@@ -152,20 +222,31 @@ class MainActivity : Activity() {
         super.onDestroy()
     }
 
-    private fun find() {
+    private fun find(hideKeyboard: Boolean = true) {
         val q = query.text.toString().trim()
         if (q.isEmpty()) return
-        getSystemService(InputMethodManager::class.java).hideSoftInputFromWindow(query.windowToken, 0)
-        results.removeAllViews()
-        results.addView(TextView(this).apply { text = "Searching…" })
+        typing.removeCallbacksAndMessages(null)
+        if (hideKeyboard) getSystemService(InputMethodManager::class.java).hideSoftInputFromWindow(query.windowToken, 0)
+        if (q == lastSearched) return // already showing (or fetching) these results
+        lastSearched = q
+        if (results.childCount == 0) results.addView(TextView(this).apply { text = "Searching…" })
+        val ticket = ++searchCount
         Places.search(q) { places ->
+            if (ticket != searchCount) return@search // a newer search is on its way
             results.removeAllViews()
-            if (places.isEmpty()) results.addView(TextView(this).apply { text = "No results" })
+            if (places.isEmpty()) {
+                lastSearched = "" // allow retrying the same text (e.g. after a network blip)
+                results.addView(TextView(this).apply { text = "No results" })
+            }
             for (p in places) {
-                val label = if (p.detail.isBlank()) p.name else "${p.name}\n${p.detail}"
+                val away = Gps.last?.let { l ->
+                    val d = FloatArray(1)
+                    Location.distanceBetween(l.latitude, l.longitude, p.lat, p.lon, d)
+                    " · ${distText(d[0].toDouble())}"
+                } ?: ""
+                val label = if (p.detail.isBlank()) "${p.name}$away" else "${p.name}$away\n${p.detail}"
                 results.addView(button(label) {
-                    results.removeAllViews()
-                    query.setText("")
+                    query.setText("") // the watcher clears results and cancels searches
                     map.follow = true
                     Nav.start(this, p)
                 }.apply { gravity = Gravity.START or Gravity.CENTER_VERTICAL })

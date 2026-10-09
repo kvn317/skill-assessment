@@ -12,8 +12,13 @@ Open the app once on the phone and grant location.
 2. ⋮ → **Developer settings** → enable **Unknown sources**.
 3. Reconnect to the car; "IRL Game Maps" appears in the launcher.
 
+## Map
+- Drag, fling, pinch or double-tap to zoom, two-finger tap to zoom out, twist to rotate, two-finger drag to tilt.
+- Your arrow sits in a halo showing GPS accuracy; your speed shows bottom-right when moving.
+- ◎ recenters and follows you; the style you pick is remembered (phone and car).
+
 ## Navigation
-- **Phone:** search at the top, or long-press the map to drop a pin. The banner shows the next turn, ETA and an End button.
+- **Phone:** search at the top (suggestions appear as you type, with distances), or long-press the map to drop a pin. The banner shows the next turn and ETA, with **Overview** (whole route), **🔊/🔇** (voice) and **End**. The map tilts into a 3D driving view while guiding. Back closes search results.
 - **Car:** 🔍 to search (voice input works while driving), ✕ to end. Turn cards and ETA show in Android Auto, with spoken prompts that duck your music.
 - **"Hey Google, navigate to …"** in Android Auto routes with this app once it's your active navigation app (open it on the car screen once; Android Auto remembers the last nav app you used).
 - Tapping a map link or "Share → IRL Game Maps" on the phone (geo: / google.navigation: links) starts a route too.

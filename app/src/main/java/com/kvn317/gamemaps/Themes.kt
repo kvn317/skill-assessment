@@ -1,5 +1,7 @@
 package com.kvn317.gamemaps
 
+import android.content.Context
+
 /** One game look: every map feature gets its own color, so styles can match the games instead of recoloring a street map. */
 class MapTheme(
     val name: String,
@@ -27,6 +29,14 @@ class MapTheme(
 )
 
 object Themes {
+    /** Last style picked on the phone or in the car. */
+    fun saved(ctx: Context): MapTheme =
+        ctx.getSharedPreferences("settings", Context.MODE_PRIVATE).getString("theme", null)
+            ?.let { name -> all.find { it.name == name } } ?: all[0]
+
+    fun save(ctx: Context, t: MapTheme) =
+        ctx.getSharedPreferences("settings", Context.MODE_PRIVATE).edit().putString("theme", t.name).apply()
+
     val all = listOf(
         // Red Dead Redemption 2, sampled from in-game map screenshots: one charcoal ink on parchment,
         // grey-olive water, buildings drawn as outlines only, dashed trails.

@@ -73,7 +73,7 @@ class CarService : CarAppService() {
 
 /** Full-screen themed map on the car display that follows the car and shows turn-by-turn guidance. */
 class CarMapScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
-    private var carTheme = Themes.all[0]
+    private var carTheme = Themes.saved(ctx)
     // The map is a normal Android view shown on the car surface through a private virtual display.
     private var display: VirtualDisplay? = null
     private var presentation: Presentation? = null
@@ -133,6 +133,7 @@ class CarMapScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
             .addAction(action(title = carTheme.name) {
                 carTheme = Themes.all[(Themes.all.indexOf(carTheme) + 1) % Themes.all.size]
                 map?.theme = carTheme
+                Themes.save(carContext, carTheme)
                 invalidate()
             })
             .addAction(
@@ -181,7 +182,7 @@ class CarMapScreen(ctx: CarContext) : Screen(ctx), SurfaceCallback {
             .createVirtualDisplay("IrlGameMaps", container.width, container.height, container.dpi, surface, 0)
         display = vd
         presentation = Presentation(carContext, vd.display).apply {
-            map = GameMap(context).also {
+            map = GameMap(context, texture = true).also {
                 it.theme = carTheme
                 setContentView(it)
             }

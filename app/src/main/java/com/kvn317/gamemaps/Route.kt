@@ -19,6 +19,7 @@ import java.util.concurrent.Executors
 import kotlin.math.cos
 import kotlin.math.hypot
 import kotlin.math.round
+import kotlin.math.roundToInt
 
 private const val USER_AGENT = "IrlGameMaps/1.1 (github.com/kvn317/skill-assessment)"
 private val io = Executors.newFixedThreadPool(2)
@@ -197,6 +198,8 @@ class Route(
 }
 
 private val imperial = Locale.getDefault().country in setOf("US", "LR", "MM")
+
+fun speedText(mps: Float) = if (imperial) "${(mps * 2.23694f).roundToInt()} mph" else "${(mps * 3.6f).roundToInt()} km/h"
 
 /** Rounded display distance as (value, androidx.car.app.model.Distance unit). */
 fun roundDistance(m: Double): Pair<Double, Int> = when {

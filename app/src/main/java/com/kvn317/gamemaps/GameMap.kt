@@ -13,7 +13,9 @@ import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.gestures.MoveGestureDetector
 import org.maplibre.android.geometry.LatLng
+import org.maplibre.android.geometry.LatLngBounds
 import org.maplibre.android.maps.MapLibreMap
+import org.maplibre.android.maps.MapLibreMapOptions
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
 import org.maplibre.android.style.expressions.Expression
@@ -27,12 +29,14 @@ import org.maplibre.geojson.Feature
 import org.maplibre.geojson.FeatureCollection
 import org.maplibre.geojson.LineString
 import org.maplibre.geojson.Point
+import kotlin.math.cos
 
 /**
  * Themed vector map with the route, destination and player blip; shared by the phone screen and the car screen.
  * Main thread only. Callers forward lifecycle via [start]/[stop]/[destroy].
  */
-class GameMap(ctx: Context) : FrameLayout(ctx) {
+/** [texture] renders through a TextureView, needed when shown on Android Auto's virtual display. */
+class GameMap(ctx: Context, texture: Boolean = false) : FrameLayout(ctx) {
     var theme = Themes.all[0]
         set(v) {
             field = v
@@ -59,7 +63,7 @@ class GameMap(ctx: Context) : FrameLayout(ctx) {
 
     init {
         MapLibre.getInstance(ctx)
-        mapView = MapView(ctx)
+        mapView = MapView(ctx, MapLibreMapOptions.createFromAttributes(ctx).textureMode(texture))
         mapView.onCreate(null)
         addView(mapView)
         addView(hud)
@@ -67,6 +71,7 @@ class GameMap(ctx: Context) : FrameLayout(ctx) {
             map = m
             m.uiSettings.isLogoEnabled = false
             m.uiSettings.isAttributionEnabled = false // credit is drawn by the HUD so it shows in the car too
+            m.uiSettings.isCompassEnabled = false // its tap-to-north fights heading-up; the Heading/North button replaces it
             m.addOnMoveListener(object : MapLibreMap.OnMoveListener {
                 override fun onMoveBegin(detector: MoveGestureDetector) { follow = false }
                 override fun onMove(detector: MoveGestureDetector) {}
@@ -97,6 +102,17 @@ class GameMap(ctx: Context) : FrameLayout(ctx) {
         map?.animateCamera(CameraUpdateFactory.zoomBy(d.toDouble()))
     }
 
+    /** Zooms out to the whole trip (stops following until recentered), like Google's route overview. */
+    fun overview() {
+        val r = Nav.route ?: return
+        val m = map ?: return
+        val pts = r.lats.indices.map { LatLng(r.lats[it], r.lons[it]) } + listOfNotNull(Gps.last?.let { LatLng(it.latitude, it.longitude) })
+        if (pts.size < 2) return
+        follow = false
+        val pad = (48 * resources.displayMetrics.density).toInt()
+        m.easeCamera(CameraUpdateFactory.newLatLngBounds(LatLngBounds.Builder().includes(pts).build(), pad), 800)
+    }
+
     fun recenter() {
         follow = true
         onLocation()
@@ -104,16 +120,20 @@ class GameMap(ctx: Context) : FrameLayout(ctx) {
 
     /** New GPS fix: move the blip and, when following, glide the camera there over about one fix interval. */
     fun onLocation() {
+        hud.invalidate() // speed readout
         refresh()
         val l = Gps.last ?: return
         if (l.hasBearing() && l.speed > 1.5f) heading = l.bearing.toDouble() // GPS bearing is noise below ~3 mph
         if (!follow) return
+        val m = map ?: return
+        val cur = m.cameraPosition
         val p = padding
-        map?.easeCamera(
+        m.easeCamera(
             CameraUpdateFactory.newCameraPosition(
-                CameraPosition.Builder()
+                CameraPosition.Builder(cur) // keep the user's zoom (and tilt when not navigating)
                     .target(LatLng(l.latitude, l.longitude))
                     .bearing(if (headingUp) heading else 0.0)
+                    .tilt(navTilt(cur.tilt)) // 3D driving view while guiding
                     .padding(p[0], p[1], p[2], p[3])
                     .build()
             ),
@@ -128,7 +148,11 @@ class GameMap(ctx: Context) : FrameLayout(ctx) {
         val l = Gps.last
         s.getSourceAs<GeoJsonSource>("me")?.let { src ->
             if (l == null) src.setGeoJson(FeatureCollection.fromFeatures(emptyList<Feature>()))
-            else src.setGeoJson(Feature.fromGeometry(Point.fromLngLat(l.longitude, l.latitude)).apply { addNumberProperty("bearing", blipBearing(l)) })
+            else src.setGeoJson(Feature.fromGeometry(Point.fromLngLat(l.longitude, l.latitude)).apply {
+                addNumberProperty("bearing", blipBearing(l))
+                // Accuracy radius in pixels at zoom 22 (512px tiles); the layer halves it per zoom level.
+                addNumberProperty("r22", l.accuracy / (0.018661 * cos(Math.toRadians(l.latitude))))
+            })
         }
         val d = Nav.dest
         s.getSourceAs<GeoJsonSource>("dest")?.let { src ->
@@ -143,6 +167,15 @@ class GameMap(ctx: Context) : FrameLayout(ctx) {
                 else src.setGeoJson(LineString.fromLngLats(r.lats.indices.map { Point.fromLngLat(r.lons[it], r.lats[it]) }))
             }
         }
+    }
+
+    private var tiltedForNav = false
+
+    /** 45° while guiding; flattens once when guidance ends; otherwise keeps whatever tilt the user chose. */
+    private fun navTilt(current: Double): Double = when {
+        Nav.active -> 45.0.also { tiltedForNav = true }
+        tiltedForNav -> 0.0.also { tiltedForNav = false }
+        else -> current
     }
 
     /** Driving: GPS direction of travel. Standing or walking slowly: where the phone points, if it has a compass. */
@@ -176,6 +209,19 @@ class GameMap(ctx: Context) : FrameLayout(ctx) {
                 )
             )
             s.addSource(GeoJsonSource("me"))
+            s.addLayer( // GPS accuracy halo, like Google's light-blue circle
+                CircleLayer("accuracy", "me").withProperties(
+                    PropertyFactory.circleRadius(
+                        Expression.interpolate(Expression.exponential(2), Expression.zoom(), Expression.stop(0, 0), Expression.stop(22, Expression.get("r22")))
+                    ),
+                    PropertyFactory.circleColor(t.blip),
+                    PropertyFactory.circleOpacity(0.15f),
+                    PropertyFactory.circleStrokeColor(t.blip),
+                    PropertyFactory.circleStrokeWidth(1f),
+                    PropertyFactory.circleStrokeOpacity(0.4f),
+                    PropertyFactory.circlePitchAlignment(Property.CIRCLE_PITCH_ALIGNMENT_MAP),
+                )
+            )
             s.addLayer(
                 SymbolLayer("me", "me").withProperties(
                     PropertyFactory.iconImage("blip"),
@@ -196,6 +242,13 @@ class GameMap(ctx: Context) : FrameLayout(ctx) {
     /** Screen-fixed overlay: the Pip-Boy grid and the map credit. */
     private inner class Hud(ctx: Context) : View(ctx) {
         private val gridPaint = Paint()
+        private val speedPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            textSize = 22 * resources.displayMetrics.scaledDensity
+            textAlign = Paint.Align.RIGHT
+            isFakeBoldText = true
+            setShadowLayer(4f, 0f, 0f, Color.BLACK)
+        }
         private val creditPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.WHITE
             textSize = 11 * resources.displayMetrics.scaledDensity
@@ -213,6 +266,10 @@ class GameMap(ctx: Context) : FrameLayout(ctx) {
                 while (y < height) { c.drawLine(0f, y, width.toFloat(), y, gridPaint); y += step }
             }
             c.drawText("© OpenFreeMap © OpenMapTiles © OpenStreetMap contributors", 12f, height - 12f, creditPaint)
+            Gps.last?.takeIf { it.hasSpeed() && it.speed > 0.5f }?.let { // current speed, bottom right
+                val dp = resources.displayMetrics.density
+                c.drawText(speedText(it.speed), width - 16 * dp, height - 28 * dp, speedPaint)
+            }
         }
     }
 }

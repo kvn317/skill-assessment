@@ -123,6 +123,7 @@ object Nav {
 
 /** Spoken prompts that duck other audio, as Android Auto expects of navigation apps. */
 object Speech : TextToSpeech.OnInitListener {
+    var muted = false
     private var tts: TextToSpeech? = null
     private var ready = false
     private lateinit var audio: AudioManager
@@ -150,9 +151,15 @@ object Speech : TextToSpeech.OnInitListener {
         ready = status == TextToSpeech.SUCCESS
     }
 
+    fun stop() {
+        val t = tts ?: return
+        t.stop()
+        audio.abandonAudioFocusRequest(focus)
+    }
+
     fun say(text: String) {
         val t = tts ?: return
-        if (!ready) return
+        if (!ready || muted) return
         audio.requestAudioFocus(focus)
         t.speak(text, TextToSpeech.QUEUE_FLUSH, null, "nav")
     }
