@@ -42,10 +42,10 @@ object Themes {
             label = "#6fcf55", halo = "#0b1608", font = "Noto Sans Bold", route = "#c8ffb8", blip = 0xFFC8FFB8.toInt(),
             grid = 0x50346826,
         ),
-        // GTA V's San Andreas pause map: slate land, white roads, navy water, purple GPS line.
+        // GTA V Los Santos pause map: slate land, white roads, navy water, purple GPS line.
         // ponytail: from memory of the game, not sampled; send a screenshot to tune it like Pip-Boy
         MapTheme(
-            "San Andreas",
+            "Los Santos",
             land = "#5f6a74", water = "#2c4a63", shore = "#1d3345", green = "#55705a", building = "#77818a",
             minor = "#c8ccd0", major = "#e3e5e7", motorway = "#f7f7f7", casing = "#3c444c",
             label = "#ffffff", halo = "#1d2228", font = "Noto Sans Bold", route = "#b04fe0", blip = 0xFFFFFFFF.toInt(),
