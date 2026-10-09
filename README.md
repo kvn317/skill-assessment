@@ -31,4 +31,4 @@ Your arrow points where the phone points when you're standing or walking, and fo
 
 In the car, tap the theme name to cycle styles and +/− to zoom. The map follows you.
 
-Map data: © OpenFreeMap © OpenMapTiles © OpenStreetMap contributors, drawn on-device with MapLibre. Search: Photon (komoot). Routing: OSRM public demo server (fair use, no uptime guarantee). Fonts (bundled as map glyphs via `tools/make_glyphs.py`): Rye, Share Tech Mono, Barlow Condensed (SIL Open Font License), Homemade Apple (Apache 2.0). Not affiliated with Rockstar or Bethesda.
+Privacy policy: [PRIVACY.md](PRIVACY.md). Map data: © OpenFreeMap © OpenMapTiles © OpenStreetMap contributors, drawn on-device with MapLibre. Search: Photon (komoot). Routing: OSRM public demo server (fair use, no uptime guarantee). Fonts (bundled as map glyphs via `tools/make_glyphs.py`): Rye, Share Tech Mono, Barlow Condensed (SIL Open Font License), Homemade Apple (Apache 2.0). Not affiliated with Rockstar or Bethesda.
