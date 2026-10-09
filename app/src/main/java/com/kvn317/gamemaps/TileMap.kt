@@ -1,5 +1,6 @@
 package com.kvn317.gamemaps
 
+import android.animation.ValueAnimator
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
@@ -10,10 +11,12 @@ import android.location.Location
 import android.os.Handler
 import android.os.Looper
 import android.util.LruCache
+import android.view.animation.LinearInterpolator
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.Executors
 import kotlin.math.PI
+import kotlin.math.abs
 import kotlin.math.atan
 import kotlin.math.cos
 import kotlin.math.floor
@@ -63,15 +66,34 @@ class TileMap(private val onUpdate: () -> Unit) {
             onUpdate()
         }
 
-    // Last reliable direction of travel; GPS bearing is noise when crawling or stopped.
+    // Displayed direction of travel, eased toward each new GPS bearing.
     private var heading = 0f
+    // ponytail: ValueAnimator follows the system animation scale, so with animations off the map snaps instead of turning
+    private val turn = ValueAnimator().apply {
+        duration = 1000 // about one GPS interval, so the turn reads as continuous
+        interpolator = LinearInterpolator()
+        addUpdateListener {
+            heading = it.animatedValue as Float
+            onUpdate()
+        }
+    }
     private val angle get() = if (headingUp) heading else 0f
 
     fun center(l: Location) {
         x = mercX(l.longitude)
         y = mercY(l.latitude)
-        if (l.hasBearing() && l.speed > 1.5f) heading = l.bearing // ~3 mph
+        if (l.hasBearing() && l.speed > 1.5f) turnTo(l.bearing) // GPS bearing is noise below ~3 mph
         onUpdate()
+    }
+
+    /** Animates to [target] the short way round (350° -> 10° turns 20°, not 340°). */
+    private fun turnTo(target: Float) {
+        val from = heading % 360
+        val delta = ((target - from) % 360 + 540) % 360 - 180
+        if (abs(delta) < 1) return
+        turn.cancel()
+        turn.setFloatValues(from, from + delta)
+        turn.start()
     }
 
     fun zoomBy(d: Int) {
