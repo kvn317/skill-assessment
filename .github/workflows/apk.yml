@@ -22,7 +22,12 @@ jobs:
       # Skipped until the UPLOAD_KEYSTORE_B64 / UPLOAD_KEYSTORE_PASSWORD repository secrets exist.
       - if: env.UPLOAD_KEYSTORE_B64 != ''
         run: |
-          echo "$UPLOAD_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/upload.jks"
+          # Pasted secrets often pick up stray spaces/newlines; strip them.
+          printf %s "$UPLOAD_KEYSTORE_B64" | tr -d '[:space:]' | base64 -d > "$RUNNER_TEMP/upload.jks"
+          export UPLOAD_KEYSTORE_PASSWORD="$(printf %s "$UPLOAD_KEYSTORE_PASSWORD" | tr -d '[:space:]')"
+          # Fingerprints only (never the values), to diagnose a mismatched secret.
+          echo "password length ${#UPLOAD_KEYSTORE_PASSWORD}, keystore sha256 $(sha256sum "$RUNNER_TEMP/upload.jks" | cut -c1-12)"
+          keytool -list -keystore "$RUNNER_TEMP/upload.jks" -storepass "$UPLOAD_KEYSTORE_PASSWORD" > /dev/null
           UPLOAD_KEYSTORE="$RUNNER_TEMP/upload.jks" gradle bundleRelease assembleRelease
           cp app/build/outputs/bundle/release/app-release.aab irl-game-maps-play.aab
           cp app/build/outputs/apk/release/app-release.apk irl-game-maps-play.apk
