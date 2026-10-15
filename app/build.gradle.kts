@@ -5,11 +5,11 @@ plugins {
 
 android {
     namespace = "com.kvn317.gamemaps"
-    compileSdk = 35
+    compileSdk = 36
     defaultConfig {
         applicationId = "com.kvn317.gamemaps"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         // Play rejects re-used version codes, so every CI build gets a new one.
         versionCode = 100 + (System.getenv("GITHUB_RUN_NUMBER")?.toInt() ?: 0)
         versionName = "2.0"
