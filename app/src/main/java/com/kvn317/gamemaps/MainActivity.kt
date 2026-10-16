@@ -234,11 +234,13 @@ class MainActivity : Activity() {
         Places.search(q) { places ->
             if (ticket != searchCount) return@search // a newer search is on its way
             results.removeAllViews()
-            if (places.isEmpty()) {
+            if (places.isNullOrEmpty()) {
                 lastSearched = "" // allow retrying the same text (e.g. after a network blip)
-                results.addView(TextView(this).apply { text = "No results" })
+                results.addView(TextView(this).apply {
+                    text = if (places == null) "Search failed. Check your connection and tap Go." else "No results"
+                })
             }
-            for (p in places) {
+            for (p in places.orEmpty()) {
                 val away = Gps.last?.let { l ->
                     val d = FloatArray(1)
                     Location.distanceBetween(l.latitude, l.longitude, p.lat, p.lon, d)

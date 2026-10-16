@@ -102,11 +102,11 @@ object Nav {
         loading = true
         lastRequest = now
         if (route == null) status = "Finding route…"
-        Route.fetch(from.latitude, from.longitude, to) { r ->
+        Route.fetch(from.latitude, from.longitude, to) { r, why ->
             loading = false
             if (dest !== to) return@fetch // trip ended or changed meanwhile
             if (r == null) {
-                if (route == null) status = "No route found, retrying…"
+                if (route == null) status = "$why. Retrying…"
                 changed()
                 return@fetch
             }

@@ -25,14 +25,15 @@ private const val USER_AGENT = "IrlGameMaps/1.1 (github.com/kvn317/skill-assessm
 private val io = Executors.newFixedThreadPool(2)
 private val main = Handler(Looper.getMainLooper())
 
-/** GETs [url] off the main thread; [cb] gets the body, or null on any failure, on the main thread. */
+/** GETs [url] off the main thread; [cb] gets the body (error bodies too), or null if the server can't be reached, on the main thread. */
 fun http(url: String, cb: (String?) -> Unit) = io.execute {
     val body = try {
         (URL(url).openConnection() as HttpURLConnection).run {
             connectTimeout = 10_000
             readTimeout = 15_000
             setRequestProperty("User-Agent", USER_AGENT)
-            inputStream.bufferedReader().use { it.readText() }
+            (if (responseCode < 400) inputStream else errorStream ?: return@run "HTTP $responseCode")
+                .bufferedReader().use { it.readText() }
         }
     } catch (e: Exception) {
         null
@@ -60,14 +61,14 @@ object Places {
             return cb(Place(m.groupValues[3].ifBlank { "Destination" }, "", lat, lon))
         }
         if (q.isNullOrBlank()) return cb(null)
-        search(q) { cb(it.firstOrNull()) }
+        search(q) { cb(it?.firstOrNull()) }
     }
 
-    /** Photon (OSM) search, biased toward the current location. */
-    fun search(q: String, cb: (List<Place>) -> Unit) {
+    /** Photon (OSM) search, biased toward the current location; null when the search server can't be reached or errors. */
+    fun search(q: String, cb: (List<Place>?) -> Unit) {
         var url = "https://photon.komoot.io/api/?limit=5&q=" + URLEncoder.encode(q, "UTF-8")
         Gps.last?.let { url += "&lat=${it.latitude}&lon=${it.longitude}" }
-        http(url) { body -> cb(body?.let { runCatching { parse(it) }.getOrNull() } ?: emptyList()) }
+        http(url) { body -> cb(body?.let { runCatching { parse(it) }.getOrNull() }) }
     }
 
     private fun parse(body: String): List<Place> {
@@ -120,11 +121,22 @@ class Route(
     }
 
     companion object {
-        /** Driving route from the public OSRM demo server (fair use only, no uptime promise). */
-        fun fetch(fromLat: Double, fromLon: Double, to: Place, cb: (Route?) -> Unit) = http(
+        /**
+         * Driving route from the public OSRM demo server (fair use only, no uptime promise).
+         * [cb] gets the route, or null and a short reason to show the driver.
+         */
+        fun fetch(fromLat: Double, fromLon: Double, to: Place, cb: (Route?, String) -> Unit) = http(
             "https://router.project-osrm.org/route/v1/driving/$fromLon,$fromLat;${to.lon},${to.lat}" +
                 "?overview=false&steps=true&geometries=geojson"
-        ) { body -> cb(body?.let { runCatching { parse(it) }.getOrNull() }) }
+        ) { body ->
+            val r = body?.let { runCatching { parse(it) }.getOrNull() }
+            val code = body?.let { runCatching { JSONObject(it).optString("code") }.getOrNull() }
+            cb(r, when {
+                body == null -> "Can't reach the route server (no internet?)"
+                code == "NoRoute" || code == "NoSegment" -> "No road route to there"
+                else -> "Route server error (${code?.ifBlank { null } ?: body.take(40)})"
+            })
+        }
 
         private fun parse(body: String): Route? {
             val root = JSONObject(body)

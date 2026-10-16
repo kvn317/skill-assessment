@@ -231,8 +231,9 @@ class CarSearchScreen(ctx: CarContext) : Screen(ctx) {
                 loading = true
                 invalidate()
                 Places.search(text) {
-                    results = it
+                    results = it.orEmpty()
                     loading = false
+                    if (it == null) CarToast.makeText(carContext, "Search failed. Check the phone's connection.", CarToast.LENGTH_LONG).show()
                     invalidate()
                 }
             }

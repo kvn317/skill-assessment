@@ -24,7 +24,8 @@ object Gps : LocationListener {
         lm = ctx.applicationContext.getSystemService(LocationManager::class.java).apply {
             for (p in listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)) {
                 if (p !in allProviders) continue
-                requestLocationUpdates(p, 1000L, 1f, this@Gps, Looper.getMainLooper())
+                // 0 m: keep fixes coming while stopped, or a coarse network fix takes over after 10 s.
+                requestLocationUpdates(p, 1000L, 0f, this@Gps, Looper.getMainLooper())
                 if (last == null) last = getLastKnownLocation(p)
             }
         }

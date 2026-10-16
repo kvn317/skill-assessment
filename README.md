@@ -17,7 +17,7 @@ Android Auto only runs Car App Library apps (like this one) when they're install
 
 ## Map
 - Drag, fling, pinch or double-tap to zoom, two-finger tap to zoom out, twist to rotate, two-finger drag to tilt.
-- Your arrow sits in a halo showing GPS accuracy; your speed shows bottom-right when moving.
+- Your arrow glides between GPS fixes; a halo shows GPS accuracy when you're stopped or walking, and your speed shows bottom-right when moving.
 - ◎ recenters and follows you; the style you pick is remembered (phone and car).
 
 ## Navigation

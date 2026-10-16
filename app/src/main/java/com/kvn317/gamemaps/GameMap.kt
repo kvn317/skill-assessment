@@ -1,5 +1,6 @@
 package com.kvn317.gamemaps
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -14,6 +15,10 @@ import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.gestures.MoveGestureDetector
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.geometry.LatLngBounds
+import org.maplibre.android.location.LocationComponentActivationOptions
+import org.maplibre.android.location.LocationComponentOptions
+import org.maplibre.android.location.modes.CameraMode
+import org.maplibre.android.location.modes.RenderMode
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapLibreMapOptions
 import org.maplibre.android.maps.MapView
@@ -23,7 +28,6 @@ import org.maplibre.android.style.layers.CircleLayer
 import org.maplibre.android.style.layers.LineLayer
 import org.maplibre.android.style.layers.Property
 import org.maplibre.android.style.layers.PropertyFactory
-import org.maplibre.android.style.layers.SymbolLayer
 import org.maplibre.android.style.sources.GeoJsonSource
 import org.maplibre.geojson.Feature
 import org.maplibre.geojson.FeatureCollection
@@ -142,14 +146,16 @@ class GameMap(ctx: Context, texture: Boolean = false) : FrameLayout(ctx) {
         )
     }
 
-    /** Redraws route, destination and blip from [Nav] and [Gps]. */
+    /** Redraws route, destination, halo and blip from [Nav] and [Gps]. */
     fun refresh() {
         val s = style ?: return
         val l = Gps.last
+        if (l != null) map?.locationComponent?.takeIf { it.isLocationComponentActivated }
+            ?.forceLocationUpdate(android.location.Location(l).apply { bearing = blipBearing(l) })
         s.getSourceAs<GeoJsonSource>("me")?.let { src ->
-            if (l == null) src.setGeoJson(FeatureCollection.fromFeatures(emptyList<Feature>()))
+            // Halo only when stopped or walking: while driving it would trail the gliding blip, and Google hides it too.
+            if (l == null || (l.hasSpeed() && l.speed > 1.5f)) src.setGeoJson(FeatureCollection.fromFeatures(emptyList<Feature>()))
             else src.setGeoJson(Feature.fromGeometry(Point.fromLngLat(l.longitude, l.latitude)).apply {
-                addNumberProperty("bearing", blipBearing(l))
                 // Accuracy radius in pixels at zoom 22 (512px tiles); the layer halves it per zoom level.
                 addNumberProperty("r22", l.accuracy / (0.018661 * cos(Math.toRadians(l.latitude))))
             })
@@ -189,6 +195,7 @@ class GameMap(ctx: Context, texture: Boolean = false) : FrameLayout(ctx) {
         style = null
         m.setStyle(Style.Builder().fromJson(styleJson(t))) { s ->
             s.addImage("blip", blipBitmap(t.blip))
+            s.addImage("none", Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888))
             s.addSource(GeoJsonSource("route"))
             s.addLayer(
                 LineLayer("route", "route").withProperties(
@@ -212,31 +219,58 @@ class GameMap(ctx: Context, texture: Boolean = false) : FrameLayout(ctx) {
             s.addLayer( // GPS accuracy halo, like Google's light-blue circle
                 CircleLayer("accuracy", "me").withProperties(
                     PropertyFactory.circleRadius(
-                        Expression.interpolate(Expression.exponential(2), Expression.zoom(), Expression.stop(0, 0), Expression.stop(22, Expression.get("r22")))
+                        // Capped: a coarse network fix made it thousands of px wide, and in the tilted driving
+                        // view that drew as a flickering triangle anchored on the blip.
+                        Expression.min(
+                            Expression.interpolate(Expression.exponential(2), Expression.zoom(), Expression.stop(0, 0), Expression.stop(22, Expression.get("r22"))),
+                            Expression.literal(120),
+                        )
                     ),
                     PropertyFactory.circleColor(t.blip),
                     PropertyFactory.circleOpacity(0.15f),
                     PropertyFactory.circleStrokeColor(t.blip),
                     PropertyFactory.circleStrokeWidth(1f),
                     PropertyFactory.circleStrokeOpacity(0.4f),
-                    PropertyFactory.circlePitchAlignment(Property.CIRCLE_PITCH_ALIGNMENT_MAP),
                 )
             )
-            s.addLayer(
-                SymbolLayer("me", "me").withProperties(
-                    PropertyFactory.iconImage("blip"),
-                    PropertyFactory.iconRotate(Expression.get("bearing")),
-                    PropertyFactory.iconRotationAlignment(Property.ICON_ROTATION_ALIGNMENT_MAP),
-                    PropertyFactory.iconAllowOverlap(true),
-                    PropertyFactory.iconIgnorePlacement(true),
-                )
-            )
+            showPuck(m, s)
             if (theme === t) {
                 style = s
                 shownRoute = null
                 refresh()
             }
         }
+    }
+
+    /**
+     * The blip is MapLibre's location puck, fed from [Gps]: it glides between fixes in step with the camera,
+     * where a GeoJSON symbol was rebuilt every fix and could blink out. Its images are the style's "blip"
+     * (re-added per theme) and a blank "none" for the parts we don't draw; our halo layer shows accuracy.
+     */
+    @SuppressLint("MissingPermission") // fixes come from Gps, which only runs with location permission
+    private fun showPuck(m: MapLibreMap, s: Style) {
+        val lc = m.locationComponent
+        if (lc.isLocationComponentActivated) return // it moves itself onto each new style
+        val opts = LocationComponentOptions.builder(context)
+            .gpsName("blip")
+            .foregroundName("blip")
+            .foregroundStaleName("blip")
+            .backgroundName("none")
+            .backgroundStaleName("none")
+            .bearingName("none")
+            .accuracyAlpha(0f)
+            .elevation(0f)
+            .enableStaleState(false)
+            .build()
+        lc.activateLocationComponent(
+            LocationComponentActivationOptions.builder(context, s)
+                .locationComponentOptions(opts)
+                .useDefaultLocationEngine(false)
+                .build()
+        )
+        lc.isLocationComponentEnabled = true
+        lc.cameraMode = CameraMode.NONE // GameMap drives the camera
+        lc.renderMode = RenderMode.GPS // arrow turned to the fix's bearing
     }
 
     /** Screen-fixed overlay: the Pip-Boy grid and the map credit. */
